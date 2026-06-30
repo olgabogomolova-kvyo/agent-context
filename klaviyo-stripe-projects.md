@@ -131,11 +131,20 @@ Sending SMS is gated on a registered SMS sender. Carrier review takes days, not 
 
 ## Plan limits and upgrade path
 
-The catalog has three discrete services. They stack onto the same account.
+Every account starts on the free plan and grows into paid tiers as volume increases.
 
-- `klaviyo/crm` (free): profile and event ingestion. 250-profile cap. No sending.
-- `klaviyo/profiles-email`: email sending. Has a free tier and paid tiers. Raises the profile cap.
-- `klaviyo/sms`: SMS sending. Has a free tier and paid tiers.
+**Free plan highlights**
+
+- Up to 250 profiles
+- 500 emails/month
+- 150 mobile message credits
+- 10,000 Composer credits
+
+The catalog has three discrete services that stack onto the same account:
+
+- `klaviyo/crm`: profile and event ingestion.
+- `klaviyo/profiles-email`: email sending, campaigns, and templates. Paid tiers raise the email and profile limits.
+- `klaviyo/sms`: SMS and mobile messaging. Paid tiers raise the mobile message credits.
 
 To add a service, the developer runs `stripe projects add klaviyo/profiles-email` (or similar) from their terminal. Stripe handles the billing setup via Shared Payment Token. You do not handle the credit card.
 
