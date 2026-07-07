@@ -15,9 +15,11 @@ accept: application/vnd.api+json
 content-type: application/vnd.api+json
 ```
 
-The `revision` header pins the API version. Always set it. The key's scopes depend on which services were installed. If you provisioned only `klaviyo/crm`, you have profile, event, list, and metric scopes. Adding `klaviyo/profiles-email` adds campaign, template, flow, and sender-config scopes. Adding `klaviyo/sms` adds mobile-messaging and deliverability scopes.
+These examples use `2026-04-15`, but confirm the revision resolves to the endpoints you're calling. Some newer surfaces (e.g. Campaigns, text-messaging) require the `.pre` variant (`2026-04-15.pre`); use that when calling them. Do not assume one revision covers every endpoint.
 
-To rotate the key, `POST` to `/api/api-key-rotations/` with the existing key id in the relationship. The call atomically deactivates the old key and mints a new one. The new secret is returned exactly once in the response body and is never retrievable again, so persist it immediately to your secrets manager. If you lose it, rotate again. There is no fetch-by-id endpoint that returns the plaintext secret. Never log the key, commit it to source control, or echo it back into chat; reference it through `$KLAVIYO_API_KEY` indirection in all examples.
+The key's scopes depend on which services were installed. If you provisioned only `klaviyo/crm`, you have profile, event, list, and metric scopes. Adding `klaviyo/profiles-email` adds campaign, template, flow, and sender-config scopes. Adding `klaviyo/sms` adds mobile-messaging and deliverability scopes.
+
+To rotate the key, disable or delete the old key and create a new one. The new secret is returned exactly once in the response body and is never retrievable again, so persist it immediately to your secrets manager. If you lose it, rotate again. There is no fetch-by-id endpoint that returns the plaintext secret. Never log the key, commit it to source control, or echo it back into chat; reference it through `$KLAVIYO_API_KEY` indirection in all examples.
 
 ## Data model
 
@@ -33,6 +35,10 @@ A **segment** is a saved query over profiles. Membership is derived. Use segment
 
 ## API conventions
 
+Call the Klaviyo REST API directly over HTTP.
+
+Full API reference: <https://developers.klaviyo.com>
+
 Base URL: `https://a.klaviyo.com/api/`
 
 Klaviyo uses JSON:API. Requests and responses are shaped like:
@@ -41,6 +47,7 @@ Klaviyo uses JSON:API. Requests and responses are shaped like:
 {
   "data": {
     "type": "profile",
+    "id": "<id>",
     "attributes": { },
     "relationships": { }
   }
@@ -49,77 +56,9 @@ Klaviyo uses JSON:API. Requests and responses are shaped like:
 
 Pagination is cursor-based. The response includes `links.next` with the URL to follow. Use `?include=lists,segments` to expand related resources in one round trip. Errors come back as `{"errors": [{"code": ..., "detail": ...}]}`. Rate limits are per-account. On `429`, back off according to the `Retry-After` header.
 
-## Three workflows you will almost certainly need
+## Common tasks
 
-### 1. Create or update a profile and subscribe to marketing
-
-```bash
-curl -X POST https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs/ \
-  -H "Authorization: Klaviyo-API-Key $KLAVIYO_API_KEY" \
-  -H "revision: 2026-04-15" \
-  -H "content-type: application/vnd.api+json" \
-  -d '{
-    "data": {
-      "type": "profile-subscription-bulk-create-job",
-      "attributes": {
-        "profiles": {
-          "data": [{
-            "type": "profile",
-            "attributes": {
-              "email": "user@example.com",
-              "subscriptions": {
-                "email": {"marketing": {"consent": "SUBSCRIBED"}}
-              }
-            }
-          }]
-        }
-      },
-      "relationships": {
-        "list": {"data": {"type": "list", "id": "YourListId"}}
-      }
-    }
-  }'
-```
-
-Subscribing a profile to marketing requires real, documented consent on your side. Klaviyo cannot verify the consent itself; it trusts that you collected it.
-
-### 2. Track a custom event
-
-```bash
-curl -X POST https://a.klaviyo.com/api/events/ \
-  -H "Authorization: Klaviyo-API-Key $KLAVIYO_API_KEY" \
-  -H "revision: 2026-04-15" \
-  -H "content-type: application/vnd.api+json" \
-  -d '{
-    "data": {
-      "type": "event",
-      "attributes": {
-        "properties": {"plan": "growth", "source": "website"},
-        "metric": {
-          "data": {
-            "type": "metric",
-            "attributes": {"name": "Signed Up"}
-          }
-        },
-        "profile": {
-          "data": {
-            "type": "profile",
-            "attributes": {"email": "user@example.com"}
-          }
-        }
-      }
-    }
-  }'
-```
-
-### 3. Read a profile by email
-
-```bash
-curl -G https://a.klaviyo.com/api/profiles/ \
-  -H "Authorization: Klaviyo-API-Key $KLAVIYO_API_KEY" \
-  -H "revision: 2026-04-15" \
-  --data-urlencode 'filter=equals(email,"user@example.com")'
-```
+Common tasks (profiles, events, templates, campaigns, flows, SMS senders) are documented in the [developer docs](https://developers.klaviyo.com/) and in the per-service skills. Start there rather than guessing endpoint shapes.
 
 ## What is already provisioned and what is not
 
@@ -127,7 +66,7 @@ A new account can ingest profiles and events the moment the API key is issued. N
 
 Sending email is gated on a verified sending domain.
 
-Sending SMS is gated on a registered SMS sender. Carrier review takes days, not minutes. Start the registration as early as possible.
+Sending SMS is gated on a registered SMS sender. Carrier review takes days, not minutes, so start early. The `klaviyo/sms` service is provisioned through Klaviyo's **text-messaging** API ("text-messaging" is the umbrella term across SMS/MMS/RCS) — see the text-messaging skill for the full flow: configuration → sender → registration.
 
 ## Plan limits and upgrade path
 
@@ -150,15 +89,14 @@ To add a service, the developer runs `stripe projects add klaviyo/profiles-email
 
 Auto-upgrade is off by default for Stripe Projects accounts. If usage exceeds the plan, the account holder gets an email; you will see send failures, not a surprise charge. Recover by either downgrading sending volume or prompting the developer to upgrade.
 
-## Pointers
-
-- Full API reference: <https://developers.klaviyo.com>
-- Klaviyo MCP server: an alternative to raw HTTP for agentic flows. See [developers.klaviyo.com/docs/klaviyo_mcp_server](https://developers.klaviyo.com/docs/klaviyo_mcp_server).
-
 ## What to do when things look wrong
 
 If a write returns `403`, the key likely lacks the scope for that resource. Check which services are installed on the account.
 
 If a write returns `404` on an account-level resource (sending domain, sms number), the prerequisite probably is not in place yet.
 
-If sends are not happening despite a successful API call, check that the sending domain is active or that the SMS sender is approved. Both are gated.
+For SMS, the text-messaging skill documents the sender/registration statuses and error codes.
+
+## Related skills
+
+- **Text-messaging (SMS) provisioning** — `text_messaging/`: create the messaging configuration, provision a sender, and poll the carrier registration to approval.
