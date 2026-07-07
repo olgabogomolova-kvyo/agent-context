@@ -1,4 +1,4 @@
-# Text Messaging API — Common Flows
+# Text Messaging API — Overview
 
 End-to-end workflows for the Klaviyo v3 text-messaging API. Chains together
 the three resources: `text-messaging-configuration`, `text-messaging-sender`,
