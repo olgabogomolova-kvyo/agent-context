@@ -99,4 +99,4 @@ For SMS, the text-messaging skill documents the sender/registration statuses and
 
 ## Related skills
 
-- **Text-messaging (SMS) provisioning** — `text_messaging/` (start with `text-messaging-overview.md`): create the messaging configuration, provision a sender, and poll the carrier registration to approval.
+- **Text-messaging (SMS) provisioning** — `text-messaging.md`: create the messaging configuration, provision a sender, and poll the carrier registration to approval.
